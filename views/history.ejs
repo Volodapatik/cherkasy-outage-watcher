@@ -1,0 +1,19 @@
+<%- include('partials', { title: 'Outage History' }) %>
+
+<section class="list">
+  <% if (!history || history.length === 0) { %>
+    <div class="card">
+      <p>No history yet.</p>
+    </div>
+  <% } else { %>
+    <% history.forEach(function(item) { %>
+      <div class="card">
+        <div class="meta"><%= item.date %></div>
+        <p><%= item.text %></p>
+        <a class="button" href="<%= item.url %>" target="_blank" rel="noopener">Open post</a>
+      </div>
+    <% }) %>
+  <% } %>
+</section>
+
+<%- include('footer') %>
