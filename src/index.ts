@@ -75,8 +75,9 @@ function extractRawText(element: { html: () => string | null }) {
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>/gi, "\n")
     .replace(/<\/div>/gi, "\n");
-  const text = loadHtml(`<div>${withBreaks}</div>`).text();
-  const lines = text.replace(/\r/g, "").split("\n").map((line) => line.trim());
+  const $ = loadHtml(`<div>${withBreaks}</div>`);
+  const text = $("body").text();
+  const lines = text.replace(/\r/g, "").split("\n").map((line: string) => line.trim());
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 

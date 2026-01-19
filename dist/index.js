@@ -58,7 +58,8 @@ function extractRawText(element) {
         .replace(/<br\s*\/?>/gi, "\n")
         .replace(/<\/p>/gi, "\n")
         .replace(/<\/div>/gi, "\n");
-    const text = (0, cheerio_1.load)(`<div>${withBreaks}</div>`).text();
+    const $ = (0, cheerio_1.load)(`<div>${withBreaks}</div>`);
+    const text = $("body").text();
     const lines = text.replace(/\r/g, "").split("\n").map((line) => line.trim());
     return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
