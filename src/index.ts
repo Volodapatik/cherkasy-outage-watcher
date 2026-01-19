@@ -17,8 +17,12 @@ const historyPath = path.join(dataDir, "history.json");
 type OutageItem = {
   id: string;
   text: string;
+  rawText?: string;
   date: string;
   url: string;
+  schedule?: { queue: string; ranges: string[] }[];
+  scheduleDateText?: string | null;
+  scheduleDateIso?: string | null;
 };
 
 type State = {
@@ -55,6 +59,101 @@ function normalizeText(text: string) {
   return text.replace(/\s+/g, " ").trim();
 }
 
+function formatDateTime(value?: string | null) {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat("uk-UA", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(parsed);
+}
+
+function extractRawText(element: { html: () => string | null }) {
+  const html = element.html() || "";
+  const withBreaks = html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/div>/gi, "\n");
+  const text = loadHtml(`<div>${withBreaks}</div>`).text();
+  const lines = text.replace(/\r/g, "").split("\n").map((line) => line.trim());
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+const monthMap: Record<string, string> = {
+  "січня": "01",
+  "лютого": "02",
+  "березня": "03",
+  "квітня": "04",
+  "травня": "05",
+  "червня": "06",
+  "липня": "07",
+  "серпня": "08",
+  "вересня": "09",
+  "жовтня": "10",
+  "листопада": "11",
+  "грудня": "12"
+};
+
+function parseScheduleDate(rawText: string) {
+  const dateRegex =
+    /(\d{1,2})\s+(січня|лютого|березня|квітня|травня|червня|липня|серпня|вересня|жовтня|листопада|грудня)/i;
+  const match = rawText.match(dateRegex);
+  if (!match) {
+    return { scheduleDateText: null, scheduleDateIso: null };
+  }
+  const day = match[1].padStart(2, "0");
+  const monthName = match[2].toLowerCase();
+  const monthNumber = monthMap[monthName];
+  const year = new Date().getFullYear();
+  return {
+    scheduleDateText: `${Number(match[1])} ${monthName}`,
+    scheduleDateIso: monthNumber ? `${year}-${monthNumber}-${day}` : null
+  };
+}
+
+function normalizeTime(value: string) {
+  const [hours, minutes] = value.split(":");
+  return `${hours.padStart(2, "0")}:${minutes.padStart(2, "0")}`;
+}
+
+function parseSchedule(rawText: string) {
+  const compact = rawText.replace(/\s+/g, " ").trim();
+  const queueRegex = /(^|[\s\n])([1-6]\.[12])\s+/g;
+  const matches: { queue: string; index: number }[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = queueRegex.exec(compact)) !== null) {
+    const offset = match[1]?.length || 0;
+    matches.push({ queue: match[2], index: match.index + offset });
+  }
+
+  const schedule: { queue: string; ranges: string[] }[] = [];
+  for (let i = 0; i < matches.length; i += 1) {
+    const start = matches[i].index;
+    const end = i + 1 < matches.length ? matches[i + 1].index : compact.length;
+    const segment = compact.slice(start, end);
+    const rangeRegex = /(\d{1,2}:\d{2})\s*[–—-]\s*(\d{1,2}:\d{2})/g;
+    const ranges: string[] = [];
+    let rangeMatch: RegExpExecArray | null;
+
+    while ((rangeMatch = rangeRegex.exec(segment)) !== null) {
+      ranges.push(`${normalizeTime(rangeMatch[1])}-${normalizeTime(rangeMatch[2])}`);
+    }
+
+    if (ranges.length > 0) {
+      schedule.push({ queue: matches[i].queue, ranges });
+    }
+  }
+
+  return schedule;
+}
+
+function isScheduleUpdate(rawText: string) {
+  const schedule = parseSchedule(rawText);
+  return schedule.length >= 4 ? schedule : null;
+}
+
 function parseChannel(html: string): OutageItem[] {
   const $ = loadHtml(html);
   const items: OutageItem[] = [];
@@ -68,14 +167,23 @@ function parseChannel(html: string): OutageItem[] {
     if (!id) return;
 
     const datetime = root.find(".tgme_widget_message_date time").attr("datetime") || "";
-    const text = normalizeText(root.find(".tgme_widget_message_text").text() || "");
-    if (!text) return;
+    const messageNode = root.find(".tgme_widget_message_text");
+    const rawText = extractRawText(messageNode);
+    if (!rawText) return;
+    const text = normalizeText(rawText);
+    const schedule = isScheduleUpdate(rawText);
+    if (!schedule) return;
+    const { scheduleDateText, scheduleDateIso } = parseScheduleDate(rawText);
 
     items.push({
       id,
       text,
+      rawText,
       date: datetime,
-      url: `https://t.me/pat_cherkasyoblenergo/${id}`
+      url: `https://t.me/pat_cherkasyoblenergo/${id}`,
+      schedule,
+      scheduleDateText,
+      scheduleDateIso
     });
   });
 
@@ -96,6 +204,18 @@ async function fetchChannelHtml(): Promise<string> {
   return response.text();
 }
 
+function pickLatestItem(items: OutageItem[]) {
+  return items.reduce<OutageItem | null>((latest, item) => {
+    if (!latest) return item;
+    const latestId = Number(latest.id);
+    const itemId = Number(item.id);
+    if (!Number.isNaN(latestId) && !Number.isNaN(itemId)) {
+      return itemId > latestId ? item : latest;
+    }
+    return item.date > latest.date ? item : latest;
+  }, null);
+}
+
 function mergeHistory(parsed: OutageItem[]) {
   const existingIds = new Set(state.history.map((item) => item.id));
   let newItems: OutageItem[] = [];
@@ -113,10 +233,16 @@ function mergeHistory(parsed: OutageItem[]) {
   }
 
   if (parsed.length > 0) {
-    state.latest = parsed[parsed.length - 1];
+    state.latest = pickLatestItem(parsed);
   }
 
   return newItems;
+}
+
+function formatScheduleLog(item: OutageItem) {
+  if (!item.schedule || item.schedule.length === 0) return "";
+  const lines = item.schedule.map((entry) => `${entry.queue}: ${entry.ranges.join(", ")}`);
+  return lines.join("\n");
 }
 
 async function notifyTelegram(newItems: OutageItem[]) {
@@ -148,6 +274,13 @@ async function pollChannel() {
     const newItems = mergeHistory(parsed);
     await atomicWriteJson(latestPath, state.latest);
     await atomicWriteJson(historyPath, state.history);
+    newItems.forEach((item) => {
+      const scheduleLog = formatScheduleLog(item);
+      console.log(`Saved schedule ${item.id} (${item.date})`);
+      if (scheduleLog) {
+        console.log(scheduleLog);
+      }
+    });
     await notifyTelegram(newItems);
   } catch (error) {
     console.error("Polling failed", error);
@@ -169,11 +302,18 @@ app.set("views", path.join(process.cwd(), "views"));
 app.use(express.static(path.join(process.cwd(), "public")));
 
 app.get("/", (_req, res) => {
-  res.render("index", { latest: state.latest, sourceUrl: CHANNEL_URL });
+  res.render("index", {
+    latest: state.latest,
+    sourceUrl: CHANNEL_URL,
+    formatDateTime
+  });
 });
 
 app.get("/history", (_req, res) => {
-  res.render("history", { history: [...state.history].reverse() });
+  res.render("history", {
+    history: [...state.history].reverse(),
+    formatDateTime
+  });
 });
 
 app.get("/api/latest", (_req, res) => {
@@ -186,6 +326,30 @@ app.get("/api/history", (_req, res) => {
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", updatedAt: state.latest?.date || null });
+});
+
+app.get("/debug/parse", async (req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  try {
+    const url = typeof req.query.url === "string" ? req.query.url : CHANNEL_URL;
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "cherkasy-outage-watcher/0.1"
+      }
+    });
+    if (!response.ok) {
+      res.status(500).json({ error: `Failed to fetch ${response.status}` });
+      return;
+    }
+    const html = await response.text();
+    const parsed = parseChannel(html);
+    res.json({ count: parsed.length, latest: pickLatestItem(parsed), items: parsed });
+  } catch (error) {
+    res.status(500).json({ error: "Parse failed" });
+  }
 });
 
 app.listen(PORT, () => {

@@ -1,17 +1,36 @@
-<%- include('partials', { title: 'Outage History' }) %>
+<%- include('partials', { title: 'Історія вимкнень' }) %>
 
 <section class="list">
   <% if (!history || history.length === 0) { %>
     <div class="card">
-      <p>No history yet.</p>
+      <p>Історії поки немає.</p>
     </div>
   <% } else { %>
     <% history.forEach(function(item) { %>
-      <div class="card">
-        <div class="meta"><%= item.date %></div>
-        <p><%= item.text %></p>
-        <a class="button" href="<%= item.url %>" target="_blank" rel="noopener">Open post</a>
-      </div>
+      <details class="card history-item">
+        <summary>
+          <span class="summary-title">Дата: <%= item.scheduleDateText || 'не знайдена' %></span>
+          <span class="summary-meta">Оновлено: <%= formatDateTime(item.date) %></span>
+        </summary>
+        <div class="history-body">
+          <% if (item.schedule && item.schedule.length > 0) { %>
+            <div class="schedule">
+              <% item.schedule.forEach(function(queue) { %>
+                <div class="queue-block">
+                  <div class="queue-label">Черга <%= queue.queue %></div>
+                  <div class="queue-ranges">
+                    <% queue.ranges.forEach(function(range) { %>
+                      <span class="range-badge"><%= range %></span>
+                    <% }) %>
+                  </div>
+                </div>
+              <% }) %>
+            </div>
+          <% } %>
+          <p class="snippet"><%= (item.rawText || item.text).slice(0, 180) %><%= (item.rawText || item.text).length > 180 ? '…' : '' %></p>
+          <a class="button" href="<%= item.url %>" target="_blank" rel="noopener">Відкрити допис</a>
+        </div>
+      </details>
     <% }) %>
   <% } %>
 </section>

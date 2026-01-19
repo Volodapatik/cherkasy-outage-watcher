@@ -1,17 +1,37 @@
-<%- include('partials', { title: 'Cherkasy Outage Watcher' }) %>
+<%- include('partials', { title: 'Графік вимкнень Черкаси' }) %>
 
 <section class="card">
   <% if (!latest) { %>
-    <p>No updates parsed yet. Check back soon.</p>
+    <p>Оновлень ще немає. Перевірте пізніше.</p>
   <% } else { %>
-    <div class="meta">Updated: <%= latest.date %></div>
-    <p><%= latest.text %></p>
-    <a class="button" href="<%= latest.url %>" target="_blank" rel="noopener">View on Telegram</a>
+    <div class="meta">Оновлено: <%= formatDateTime(latest.date) %></div>
+    <div class="meta">Дата: <%= latest.scheduleDateText || 'не знайдена' %></div>
+    <% if (latest.schedule && latest.schedule.length > 0) { %>
+      <div class="schedule">
+        <% latest.schedule.forEach(function(queue) { %>
+          <div class="queue-block">
+            <div class="queue-label">Черга <%= queue.queue %></div>
+            <div class="queue-ranges">
+              <% queue.ranges.forEach(function(range) { %>
+                <span class="range-badge"><%= range %></span>
+              <% }) %>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    <% } else { %>
+      <p><%= latest.text %></p>
+    <% } %>
+    <details class="raw-block">
+      <summary>Оригінальний текст</summary>
+      <pre class="raw-text"><%= latest.rawText || latest.text %></pre>
+    </details>
+    <a class="button" href="<%= latest.url %>" target="_blank" rel="noopener">Відкрити в Telegram</a>
   <% } %>
 </section>
 
 <section class="card">
-  <small>Source: <a href="<%= sourceUrl %>" target="_blank" rel="noopener"><%= sourceUrl %></a></small>
+  <small>Джерело: <a href="<%= sourceUrl %>" target="_blank" rel="noopener"><%= sourceUrl %></a></small>
 </section>
 
 <%- include('footer') %>

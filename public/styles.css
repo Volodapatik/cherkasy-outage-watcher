@@ -54,6 +54,58 @@ main {
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
 }
 
+.schedule {
+  display: grid;
+  gap: 14px;
+  margin: 16px 0;
+}
+
+.queue-block {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: rgba(15, 20, 33, 0.6);
+}
+
+.queue-label {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.queue-ranges {
+  display: grid;
+  gap: 6px;
+}
+
+.range-badge {
+  display: block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(57, 198, 165, 0.15);
+  color: var(--text);
+  font-size: 14px;
+  letter-spacing: 0.2px;
+}
+
+.raw-block {
+  margin: 16px 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.raw-block summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.raw-text {
+  white-space: pre-wrap;
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
 .meta {
   color: var(--muted);
   font-size: 14px;
@@ -68,11 +120,38 @@ a.button {
   color: #041410;
   text-decoration: none;
   font-weight: 600;
+  margin-top: 8px;
 }
 
 .list {
   display: grid;
   gap: 14px;
+}
+
+.history-item summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.summary-title {
+  font-weight: 600;
+}
+
+.summary-meta {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.history-body {
+  margin-top: 12px;
+}
+
+.snippet {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.4;
 }
 
 small {
