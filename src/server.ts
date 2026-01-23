@@ -2,7 +2,14 @@ import path from "path";
 import express from "express";
 import { state, getChannelUrl, debugParse } from "./watcher";
 import { formatDateTimeUA } from "./time";
-import { addSubscription, getPublicKey, isPushConfigured, removeSubscription, sendTestPush } from "./push";
+import {
+  addSubscription,
+  getPublicKey,
+  isPushConfigured,
+  loadSubscriptions,
+  removeSubscription,
+  sendTestPush
+} from "./push";
 
 const PORT = Number(process.env.PORT || 3000);
 
@@ -91,6 +98,28 @@ export function startServer() {
 
     await sendTestPush();
     res.json({ ok: true });
+  });
+
+  app.post("/api/push/debug", async (req, res) => {
+    const testKey = process.env.PUSH_TEST_KEY;
+
+    // In production, allow only when secret key is provided
+    if (process.env.NODE_ENV === "production") {
+      const provided =
+        (typeof req.query.key === "string" ? req.query.key : "") ||
+        (typeof req.header("x-push-test-key") === "string" ? req.header("x-push-test-key")! : "");
+
+      if (!testKey || provided !== testKey) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
+    }
+
+    const subscriptions = await loadSubscriptions();
+    res.json({
+      count: subscriptions.length,
+      sampleEndpoint: subscriptions[0]?.endpoint
+    });
   });
 
   app.get("/health", (_req, res) => {

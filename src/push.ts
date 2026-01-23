@@ -23,7 +23,7 @@ export function getPublicKey() {
   return VAPID_PUBLIC_KEY;
 }
 
-async function loadSubscriptions() {
+export async function loadSubscriptions() {
   await ensureDataDir();
   return readJsonFile<PushSubscription[]>(subscriptionsPath, []);
 }
