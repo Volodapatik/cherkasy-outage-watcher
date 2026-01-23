@@ -1,6 +1,6 @@
 import path from "path";
 import express from "express";
-import { state, getChannelUrl, debugParse } from "./watcher";
+import { state, getChannelUrl, debugParse, buildSchedulePushPayload } from "./watcher";
 import { formatDateTimeUA } from "./time";
 import {
   addSubscription,
@@ -8,7 +8,7 @@ import {
   isPushConfigured,
   loadSubscriptions,
   removeSubscription,
-  sendTestPush
+  sendPush
 } from "./push";
 
 const PORT = Number(process.env.PORT || 3000);
@@ -96,7 +96,25 @@ export function startServer() {
       return;
     }
 
-    await sendTestPush();
+    if (!state.latest) {
+      res.status(404).json({ error: "No schedule available" });
+      return;
+    }
+
+    const force = req.query.force === "1";
+    const result = force
+      ? buildSchedulePushPayload(state.latest, null, null)
+      : buildSchedulePushPayload(
+          state.latest,
+          state.lastSentScheduleDateText,
+          state.lastSentScheduleSignature
+        );
+    if (!result) {
+      res.status(409).json({ error: "No changes to notify" });
+      return;
+    }
+
+    await sendPush(result.payload);
     res.json({ ok: true });
   });
 

@@ -27,3 +27,14 @@ export function formatDateUA(value?: string | null) {
   }).format(parsed);
   return formatted.replace(/\sр\./, "");
 }
+
+export function formatTimeUA(value?: string | null) {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat("uk-UA", {
+    timeZone: KYIV_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(parsed);
+}

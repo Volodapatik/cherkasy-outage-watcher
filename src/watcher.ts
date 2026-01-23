@@ -1,7 +1,8 @@
 import crypto from "crypto";
 import { load as loadHtml } from "cheerio";
 import { atomicWriteJson, ensureDataDir, readJsonFile, resolveDataPath } from "./storage";
-import { sendScheduleUpdatePush } from "./push";
+import { sendPush, type PushPayload } from "./push";
+import { formatDateUA, formatTimeUA } from "./time";
 
 const CHANNEL_URL = process.env.TELEGRAM_CHANNEL_URL || "https://t.me/s/pat_cherkasyoblenergo";
 const POLL_INTERVAL_SECONDS = Number(process.env.POLL_INTERVAL_SECONDS || 300);
@@ -16,6 +17,8 @@ export type OutageItem = {
   text: string;
   rawText?: string;
   date: string;
+  updatedAt?: string | null;
+  publishedAt?: string | null;
   url: string;
   schedule?: { queue: string; ranges: string[] }[];
   scheduleDateText?: string | null;
@@ -26,11 +29,15 @@ export type OutageItem = {
 export type State = {
   latest: OutageItem | null;
   history: OutageItem[];
+  lastSentScheduleSignature: string | null;
+  lastSentScheduleDateText: string | null;
 };
 
 export const state: State = {
   latest: null,
-  history: []
+  history: [],
+  lastSentScheduleSignature: null,
+  lastSentScheduleDateText: null
 };
 
 function normalizeText(text: string) {
@@ -125,6 +132,66 @@ function isScheduleUpdate(rawText: string) {
 
 function hashContent(rawText: string) {
   return crypto.createHash("sha256").update(rawText).digest("hex");
+}
+
+function normalizeScheduleForHash(schedule?: { queue: string; ranges: string[] }[]) {
+  if (!schedule || schedule.length === 0) return "";
+  const normalized = schedule
+    .map((entry) => ({
+      queue: entry.queue.trim(),
+      ranges: entry.ranges.map((range) => range.trim()).sort()
+    }))
+    .sort((a, b) => a.queue.localeCompare(b.queue));
+  return normalized.map((entry) => `${entry.queue}:${entry.ranges.join(",")}`).join("|");
+}
+
+function hashSchedule(schedule?: { queue: string; ranges: string[] }[]) {
+  const normalized = normalizeScheduleForHash(schedule);
+  return crypto.createHash("sha256").update(normalized).digest("hex");
+}
+
+function getScheduleDateLabel(item: OutageItem) {
+  return item.scheduleDateText || formatDateUA(item.scheduleDateIso || item.date);
+}
+
+function getUpdateTimeLabel(item: OutageItem) {
+  return formatTimeUA(item.updatedAt || item.publishedAt || item.date);
+}
+
+export function buildSchedulePushPayload(
+  item: OutageItem,
+  previousScheduleDateText: string | null,
+  previousScheduleSignature: string | null
+): { payload: PushPayload; scheduleDateText: string; scheduleSignature: string } | null {
+  const scheduleDateText = getScheduleDateLabel(item);
+  const scheduleSignature = hashSchedule(item.schedule);
+  const updateTime = getUpdateTimeLabel(item);
+
+  if (!previousScheduleDateText || previousScheduleDateText !== scheduleDateText) {
+    return {
+      payload: {
+        title: `Новий графік на ${scheduleDateText} (${updateTime})`,
+        body: "Натисни, щоб відкрити і переглянути деталі.",
+        url: "/"
+      },
+      scheduleDateText,
+      scheduleSignature
+    };
+  }
+
+  if (!previousScheduleSignature || previousScheduleSignature !== scheduleSignature) {
+    return {
+      payload: {
+        title: `Оновився графік на ${scheduleDateText} (${updateTime})`,
+        body: "Натисни, щоб відкрити і переглянути деталі.",
+        url: "/"
+      },
+      scheduleDateText,
+      scheduleSignature
+    };
+  }
+
+  return null;
 }
 
 function parseChannel(html: string): OutageItem[] {
@@ -246,9 +313,16 @@ async function notifyTelegram(newItems: OutageItem[]) {
 }
 
 async function notifyPush(newItems: OutageItem[]) {
-  for (const item of newItems) {
-    await sendScheduleUpdatePush(item);
-  }
+  if (!state.latest) return;
+  const result = buildSchedulePushPayload(
+    state.latest,
+    state.lastSentScheduleDateText,
+    state.lastSentScheduleSignature
+  );
+  if (!result) return;
+  await sendPush(result.payload);
+  state.lastSentScheduleDateText = result.scheduleDateText;
+  state.lastSentScheduleSignature = result.scheduleSignature;
 }
 
 async function pollChannel() {
@@ -286,6 +360,10 @@ export async function startWatcher() {
     if (item.contentHash) return item;
     return { ...item, contentHash: hashContent(item.rawText || item.text) };
   });
+  if (state.latest) {
+    state.lastSentScheduleDateText = getScheduleDateLabel(state.latest);
+    state.lastSentScheduleSignature = hashSchedule(state.latest.schedule);
+  }
 
   await pollChannel();
   setInterval(pollChannel, POLL_INTERVAL_SECONDS * 1000);

@@ -1,7 +1,5 @@
 import webpush, { PushSubscription } from "web-push";
 import { atomicWriteJson, ensureDataDir, readJsonFile, resolveDataPath } from "./storage";
-import { formatDateUA } from "./time";
-import type { OutageItem } from "./watcher";
 
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
@@ -60,7 +58,7 @@ export async function removeSubscription(
   return filtered.length;
 }
 
-type PushPayload = {
+export type PushPayload = {
   title: string;
   body: string;
   url: string;
@@ -93,19 +91,6 @@ async function sendPushToAll(payload: PushPayload) {
   }
 }
 
-export async function sendScheduleUpdatePush(item: OutageItem) {
-  const scheduleLabel = item.scheduleDateText || formatDateUA(item.scheduleDateIso || item.date);
-  await sendPushToAll({
-    title: `⚡️ Оновлений графік на ${scheduleLabel}`,
-    body: "Натисни, щоб відкрити сайт і переглянути деталі.",
-    url: "/?from=push"
-  });
-}
-
-export async function sendTestPush() {
-  await sendPushToAll({
-    title: "Тестові сповіщення",
-    body: "Натисни, щоб відкрити сайт і переглянути деталі.",
-    url: "/?from=push"
-  });
+export async function sendPush(payload: PushPayload) {
+  await sendPushToAll(payload);
 }
