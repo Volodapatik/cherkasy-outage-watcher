@@ -11,11 +11,35 @@
 </head>
 <body>
   <header>
-    <h1><%= title %></h1>
+    <div class="header-row">
+      <h1><%= title %></h1>
+      <label for="settings-toggle" class="settings-button" aria-label="Налаштування">⚙️</label>
+    </div>
     <nav>
       <a href="/">Останній</a>
       <a href="/history">Історія</a>
       <a href="/api/latest">API</a>
     </nav>
   </header>
+
+  <input type="checkbox" id="settings-toggle" class="settings-toggle" />
+  <label for="settings-toggle" class="settings-backdrop" aria-hidden="true"></label>
+  <aside class="settings-panel" aria-label="Налаштування">
+    <div class="settings-header">
+      <div class="settings-title">Налаштування</div>
+      <label for="settings-toggle" class="settings-close" aria-label="Закрити">×</label>
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Сповіщення</div>
+      <div class="settings-meta" id="push-permission">Стан дозволу: …</div>
+      <div class="settings-meta" id="push-status">Стан підписки: …</div>
+      <div class="settings-actions">
+        <button class="button ghost" id="push-enable" type="button">Увімкнути сповіщення</button>
+        <button class="button ghost" id="push-disable" type="button">Вимкнути сповіщення</button>
+      </div>
+      <div class="settings-warning" id="push-denied" hidden>Сповіщення вимкнені в браузері. Дозвольте їх у налаштуваннях цього сайту.</div>
+      <div class="settings-hint">Chrome → Налаштування → Сповіщення: Заблокувати всім, і вручну Дозволити тільки цей сайт</div>
+    </div>
+  </aside>
+
   <main>

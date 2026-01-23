@@ -4,7 +4,7 @@
   <% if (!latest) { %>
     <p>Оновлень ще немає. Перевірте пізніше.</p>
   <% } else { %>
-    <div class="meta">Оновлено: <%= formatDateTime(latest.date) %></div>
+    <div class="meta">Оновлено: <%= formatDateTimeUA(latest.date) %></div>
     <div class="meta">Дата: <%= latest.scheduleDateText || 'не знайдена' %></div>
     <% if (latest.schedule && latest.schedule.length > 0) { %>
       <div class="schedule">

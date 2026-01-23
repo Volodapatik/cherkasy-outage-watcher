@@ -10,7 +10,7 @@
       <details class="card history-item">
         <summary>
           <span class="summary-title">Дата: <%= item.scheduleDateText || 'не знайдена' %></span>
-          <span class="summary-meta">Оновлено: <%= formatDateTime(item.date) %></span>
+          <span class="summary-meta">Оновлено: <%= formatDateTimeUA(item.date) %></span>
         </summary>
         <div class="history-body">
           <% if (item.schedule && item.schedule.length > 0) { %>
