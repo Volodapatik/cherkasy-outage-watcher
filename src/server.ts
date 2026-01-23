@@ -69,15 +69,26 @@ export function startServer() {
     res.json({ ok: true });
   });
 
-  app.post("/api/push/test", async (_req, res) => {
+  app.post("/api/push/test", async (req, res) => {
+    const testKey = process.env.PUSH_TEST_KEY;
+
+    // In production, allow only when secret key is provided
     if (process.env.NODE_ENV === "production") {
-      res.status(404).json({ error: "Not found" });
-      return;
+      const provided =
+        (typeof req.query.key === "string" ? req.query.key : "") ||
+        (typeof req.header("x-push-test-key") === "string" ? req.header("x-push-test-key")! : "");
+
+      if (!testKey || provided !== testKey) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
     }
+
     if (!isPushConfigured()) {
       res.status(503).json({ error: "Push is not configured" });
       return;
     }
+
     await sendTestPush();
     res.json({ ok: true });
   });
