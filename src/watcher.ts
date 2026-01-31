@@ -93,8 +93,28 @@ function normalizeTime(value: string) {
   return `${hours.padStart(2, "0")}:${minutes.padStart(2, "0")}`;
 }
 
+function normalizeScheduleText(rawText: string) {
+  return rawText
+    .replace(/[–—]/g, "-")
+    .replace(/([1-6]\.[12])\s*:/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function timeToMinutes(value: string) {
+  const [hours, minutes] = value.split(":");
+  return Number(hours) * 60 + Number(minutes);
+}
+
+function normalizeRangeEnd(start: string, end: string) {
+  if (end === "00:00" && start !== "00:00" && timeToMinutes(start) > timeToMinutes(end)) {
+    return "24:00";
+  }
+  return end;
+}
+
 function parseSchedule(rawText: string) {
-  const compact = rawText.replace(/\s+/g, " ").trim();
+  const compact = normalizeScheduleText(rawText);
   const queueRegex = /(^|[\s\n])([1-6]\.[12])\s+/g;
   const matches: { queue: string; index: number }[] = [];
   let match: RegExpExecArray | null;
@@ -109,12 +129,15 @@ function parseSchedule(rawText: string) {
     const start = matches[i].index;
     const end = i + 1 < matches.length ? matches[i + 1].index : compact.length;
     const segment = compact.slice(start, end);
-    const rangeRegex = /(\d{1,2}:\d{2})\s*[–—-]\s*(\d{1,2}:\d{2})/g;
+    const rangeRegex = /(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/g;
     const ranges: string[] = [];
     let rangeMatch: RegExpExecArray | null;
 
     while ((rangeMatch = rangeRegex.exec(segment)) !== null) {
-      ranges.push(`${normalizeTime(rangeMatch[1])}-${normalizeTime(rangeMatch[2])}`);
+      const start = normalizeTime(rangeMatch[1]);
+      const end = normalizeTime(rangeMatch[2]);
+      const normalizedEnd = normalizeRangeEnd(start, end);
+      ranges.push(`${start}-${normalizedEnd}`);
     }
 
     if (ranges.length > 0) {
